@@ -654,6 +654,7 @@ bool UnloadPlugin(std::string_view pluginName, bool save /* = false */)
 
 	PluginInfoRec rec;
 	MQPlugin* pPlugin;
+	bool removeFromActiveLists = false;
 	std::string_view canonicalName = GetCanonicalPluginName(pluginName);
 
 	if (save)
@@ -691,15 +692,19 @@ bool UnloadPlugin(std::string_view pluginName, bool save /* = false */)
 
 		// Inform other plugins that this plugin is being removed
 		PluginsUnloadPlugin(pPlugin->szFilename);
-
-		// Remove it from the list so that it can no longer be accessed
-		RemovePluginFromList(pPlugin);
-
-		s_pluginMap.erase(iter);
-		s_pluginHandleMap.erase(rec.handle.pluginID);
+		removeFromActiveLists = true;
 	}
 
 	ShutdownPlugin(rec);
+
+	// Post-unload cleanup resolves plugin-owned resources through these maps.
+	// Keep the plugin discoverable until that cleanup has completed.
+	if (removeFromActiveLists)
+	{
+		RemovePluginFromList(pPlugin);
+		s_pluginMap.erase(canonicalName);
+		s_pluginHandleMap.erase(rec.handle.pluginID);
+	}
 
 	// Cleanup
 	if (FreeLibrary(pPlugin->hModule))
@@ -948,7 +953,7 @@ void PluginsReloadUI()
 
 	ForEachModule([](const MQModule* module)
 		{
-			if (module->CleanUI)
+			if (module->ReloadUI)
 				module->ReloadUI();
 		});
 

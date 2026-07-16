@@ -27,6 +27,7 @@ namespace mq {
 
 static std::vector<MQTexture*> s_textures;
 static bool s_shutdown = false;
+static bool s_graphicsResourcesReleased = false;
 
 static int s_renderCallbacksId = -1;
 
@@ -36,7 +37,8 @@ MQTexture* CreateTexture(std::string_view filename)
 {
 	MQTexture* newTexture = nullptr;
 
-	if (pGraphicsEngine && pGraphicsEngine->pResourceManager)
+	if (!s_shutdown && EQGraphicsBaseAddress != 0
+		&& pGraphicsEngine && pGraphicsEngine->pResourceManager)
 	{
 		newTexture = new MQTexture(filename);
 		if (!newTexture->IsValid())
@@ -85,7 +87,8 @@ MQTexture::MQTexture(std::string_view name)
 
 MQTexture::~MQTexture()
 {
-	if (pGraphicsEngine && pGraphicsEngine->pResourceManager)
+	if (m_bmi && EQGraphicsBaseAddress != 0
+		&& pGraphicsEngine && pGraphicsEngine->pResourceManager)
 	{
 		ReleaseTexture();
 	}
@@ -98,7 +101,8 @@ MQTexture::~MQTexture()
 
 void MQTexture::AcquireTexture()
 {
-	if (m_bmi == nullptr)
+	if (m_bmi == nullptr && EQGraphicsBaseAddress != 0
+		&& pGraphicsEngine && pGraphicsEngine->pResourceManager)
 	{
 		BMI* bmi = pGraphicsEngine->pResourceManager->CreateBMI(m_name.c_str(), m_name.c_str(),
 			nullptr, eMemoryPoolManagerTypePersistent);
@@ -158,7 +162,7 @@ CXSize MQTexture::GetTextureSize() const
 
 static void GraphicsResources_CreateDeviceObjects()
 {
-	if (pGraphicsEngine && pGraphicsEngine->pResourceManager)
+	if (EQGraphicsBaseAddress != 0 && pGraphicsEngine && pGraphicsEngine->pResourceManager)
 	{
 		for (MQTexture* texture : s_textures)
 		{
@@ -169,7 +173,7 @@ static void GraphicsResources_CreateDeviceObjects()
 
 static void GraphicsResources_InvalidateDeviceObjects()
 {
-	if (pGraphicsEngine && pGraphicsEngine->pResourceManager)
+	if (EQGraphicsBaseAddress != 0 && pGraphicsEngine && pGraphicsEngine->pResourceManager)
 	{
 		for (MQTexture* texture : s_textures)
 		{
@@ -178,8 +182,11 @@ static void GraphicsResources_InvalidateDeviceObjects()
 	}
 }
 
-void GraphicsResources_Initialize()
+static void GraphicsResources_RegisterCallbacks()
 {
+	if (s_renderCallbacksId != -1)
+		return;
+
 	MQRenderCallbacks callbacks;
 	callbacks.CreateDeviceObjects = GraphicsResources_CreateDeviceObjects;
 	callbacks.InvalidateDeviceObjects = GraphicsResources_InvalidateDeviceObjects;
@@ -187,21 +194,48 @@ void GraphicsResources_Initialize()
 	s_renderCallbacksId = AddRenderCallbacks(callbacks);
 }
 
-void GraphicsResources_Shutdown()
+void GraphicsResources_Initialize()
 {
-	s_shutdown = true;
+	s_shutdown = false;
+	s_graphicsResourcesReleased = false;
+	GraphicsResources_RegisterCallbacks();
+}
 
-	if (pGraphicsEngine && pGraphicsEngine->pResourceManager)
+void GraphicsResources_ReleaseForGraphicsShutdown()
+{
+	if (s_graphicsResourcesReleased)
+		return;
+
+	if (s_renderCallbacksId != -1)
 	{
-		for (MQTexture* texture : s_textures)
-		{
-			texture->ReleaseTexture();
-		}
+		RemoveRenderCallbacks(s_renderCallbacksId);
+		s_renderCallbacksId = -1;
+	}
+	else
+	{
+		GraphicsResources_InvalidateDeviceObjects();
 	}
 
-	s_textures.clear();
+	s_graphicsResourcesReleased = true;
+}
 
-	RemoveRenderCallbacks(s_renderCallbacksId);
+void GraphicsResources_RestoreAfterGraphicsStartup()
+{
+	if (!s_shutdown)
+	{
+		GraphicsResources_RegisterCallbacks();
+		s_graphicsResourcesReleased = false;
+	}
+}
+
+void GraphicsResources_Shutdown()
+{
+	if (s_shutdown)
+		return;
+
+	s_shutdown = true;
+	GraphicsResources_ReleaseForGraphicsShutdown();
+	s_textures.clear();
 }
 
 //============================================================================

@@ -37,6 +37,9 @@ bool OverlayWndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 static bool s_waitingForFrontend = false;
 static bool s_inFrontend = false;
 static bool s_initialized = false;
+#if defined(EQMain__CXWndManager__GetCursorToDisplay_x)
+static bool s_cursorDetourInstalled = false;
+#endif
 
 //----------------------------------------------------------------------------
 // Login Pulse detour
@@ -132,6 +135,7 @@ void InitializeLoginFrontend()
 		{
 			EzDetour(EQMain__CXWndManager__GetCursorToDisplay, &CXWndManager_Hook::GetCursorToDisplay_Detour,
 				&CXWndManager_Hook::GetCursorToDisplay_Trampoline);
+			s_cursorDetourInstalled = true;
 		}
 #endif
 
@@ -160,13 +164,18 @@ void ShutdownLoginFrontend()
 		uintptr_t detours[] = {
 			EQMain__LoginController__GiveTime,
 			EQMain__WndProc,
-	#if defined(EQMain__CXWndManager__GetCursorToDisplay_x)
-			EQMain__CXWndManager__GetCursorToDisplay
-	#endif // defined(EQMain__CXWndManager__GetCursorToDisplay_x)
 		};
 
 		for (uintptr_t detour : detours)
 			RemoveDetour(detour);
+
+#if defined(EQMain__CXWndManager__GetCursorToDisplay_x)
+		if (s_cursorDetourInstalled)
+		{
+			RemoveDetour(EQMain__CXWndManager__GetCursorToDisplay);
+			s_cursorDetourInstalled = false;
+		}
+#endif
 
 		s_initialized = false;
 	}

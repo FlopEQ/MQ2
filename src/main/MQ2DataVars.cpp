@@ -886,7 +886,7 @@ void CheckChatForEvent(const char* szMsg)
 	TellCheck(szClean);
 
 	MQMacroBlockPtr pBlock = GetCurrentMacroBlock();
-	if ((pBlock && !pBlock->Line.empty()) && (!pBlock->Paused) && (!gbUnload) && (!gZoning))
+	if (pEventBlech && (pBlock && !pBlock->Line.empty()) && (!pBlock->Paused) && (!gbUnload) && (!gZoning))
 	{
 		char SpeakerName[MAX_STRING] = { 0 };
 		char Content[MAX_STRING] = { 0 };

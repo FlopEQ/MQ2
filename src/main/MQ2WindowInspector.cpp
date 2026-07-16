@@ -2425,7 +2425,6 @@ public:
 
 				// Background
 				ColumnText("Background type", XWndBackgroundTypeToString(static_cast<XWndBackgroundType>(pWnd->BGType)));
-				ColumnText("Background draw type", XWndBackgroundDrawTypeToString(static_cast<XWndBackgroundDrawType>(pWnd->BackgroundDrawType)));
 				ColumnColor("Normal color", &pWnd->CRNormal);
 				ColumnColor("Background color", &pWnd->BGColor);
 				ColumnColor<CXWnd>("Disabled background color", pWnd, &CXWnd::GetDisabledBackground, &CXWnd::SetDisabledBackground);
@@ -2649,7 +2648,6 @@ public:
 
 				// Background
 				ColumnText("Background type", XWndBackgroundTypeToString(static_cast<XWndBackgroundType>(pWnd->BGType)));
-				ColumnText("Background draw type", XWndBackgroundDrawTypeToString(static_cast<XWndBackgroundDrawType>(pWnd->BackgroundDrawType)));
 				ColumnColor("Normal color", &pWnd->CRNormal);
 				ColumnColor("Background color", &pWnd->BGColor);
 				ColumnColor<eqlib::eqmain::CXWnd>("Disabled background color", pWnd,

@@ -1287,7 +1287,8 @@ bool MQ2SpawnType::GetMember(SPAWNINFO* pSpawn, const char* Member, char* Index,
 		return true;
 
 	case SpawnMembers::CorpseDragCount:
-		Dest.DWord = pSpawn->CorpseDragCount;
+		// July 2026: CorpseDragCount is unresolved between two proven dword slots.
+		Dest.DWord = 0;
 		Dest.Type = pIntType;
 		return true;
 

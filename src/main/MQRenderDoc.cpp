@@ -51,6 +51,7 @@ static bool s_captureNextFrame = false;
 static HMODULE s_renderDocModule;
 static RENDERDOC_API_1_6_0* s_renderDocAPI = nullptr;
 static bool s_capturingFrames = false;
+static bool s_debugAPIInstalled = false;
 
 // Renderdoc Options
 static int s_apiValidation = 0;
@@ -582,26 +583,49 @@ static void RenderDoc_Initialize()
 		s_fakeDebugAPI.begin = DBG_BeginBlock;
 		s_fakeDebugAPI.end = DBG_EndBlock;
 
-		*(GraphicsDebugAPI**)EQGraphics_DebugAPI_Ptr = &s_fakeDebugAPI;
+		if (EQGraphics_DebugAPI_Ptr)
+		{
+			*(GraphicsDebugAPI**)EQGraphics_DebugAPI_Ptr = &s_fakeDebugAPI;
+			s_debugAPIInstalled = true;
+		}
 	}
+}
+
+void RenderDoc_GraphicsPreRelease()
+{
+	if (!s_debugAPIInstalled)
+		return;
+
+	if (EQGraphics_DebugAPI_Ptr)
+		*(GraphicsDebugAPI**)EQGraphics_DebugAPI_Ptr = nullptr;
+
+	s_debugAPIInstalled = false;
+}
+
+void RenderDoc_GraphicsRestored()
+{
+	if (!s_renderDocInitialized || s_debugAPIInstalled || !EQGraphics_DebugAPI_Ptr)
+		return;
+
+	*(GraphicsDebugAPI**)EQGraphics_DebugAPI_Ptr = &s_fakeDebugAPI;
+	s_debugAPIInstalled = true;
 }
 
 static void RenderDoc_Shutdown()
 {
+	if (!s_renderDocInitialized)
+		return;
+
+	RenderDoc_GraphicsPreRelease();
 	DXCaptureReplay_Shutdown();
+
+	RemoveCommand("/renderdoc");
+	RemoveSettingsPanel("RenderDoc");
 
 	// We cannot free the module since it may be still loaded, so we will just let it leak.
 	s_renderDocModule = nullptr;
 	s_renderDocInitialized = false;
 	s_renderDocAPI = nullptr;
-
-	*(GraphicsDebugAPI**)EQGraphics_DebugAPI_Ptr = nullptr;
-
-	if (s_renderDocInitialized)
-	{
-		RemoveCommand("/renderdoc");
-		RemoveSettingsPanel("RenderDoc");
-	}
 }
 
 #else // HAS_DIRECTX_11
@@ -613,6 +637,14 @@ void RenderDoc_SetMarker(MQColor color, const wchar_t* name) {}
 #endif
 
 void RenderDoc_Startup()
+{
+}
+
+void RenderDoc_GraphicsPreRelease()
+{
+}
+
+void RenderDoc_GraphicsRestored()
 {
 }
 

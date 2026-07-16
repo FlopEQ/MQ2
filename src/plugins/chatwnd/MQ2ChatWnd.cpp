@@ -64,6 +64,9 @@ public:
 		SetBGColor(0xFF000000); // black background
 
 		InputBox = (CEditWnd*)GetChildItem("CW_ChatInput");
+		if (!InputBox)
+			return;
+
 		InputBox->AddStyle(CWS_AUTOVSCROLL | CWS_RELATIVERECT | CWS_BORDER); // 0x800C0;
 		SetFaded(false);
 		SetEscapable(false);
@@ -73,7 +76,11 @@ public:
 		ContextMenuID = 3;
 		InputBox->SetCRNormal(0xFFFFFFFF); // we want a white cursor
 		InputBox->SetMaxChars(512);
+
 		OutputBox = (CStmlWnd*)GetChildItem("CW_ChatOutput");
+		if (!OutputBox)
+			return;
+
 		OutputBox->SetParentWindow(this);
 		InputBox->SetParentWindow(this);
 		OutputBox->MaxLines = MAX_LINES_OUTBOX;
@@ -234,9 +241,11 @@ public:
 		}
 	}
 
+	bool IsValid() const { return InputBox != nullptr && OutputBox != nullptr; }
+
 	int FontSize = 4;
-	CEditWnd* InputBox;
-	CStmlWnd* OutputBox;
+	CEditWnd* InputBox = nullptr;
+	CStmlWnd* OutputBox = nullptr;
 
 private:
 	std::vector<std::string> sCmdHistory;
@@ -334,6 +343,13 @@ void CreateChatWindow()
 	}
 
 	MQChatWnd = new CMQChatWnd("ChatWindow");
+	if (!MQChatWnd->IsValid())
+	{
+		DebugSpew("MQ2ChatWnd: ChatWindow template is missing required controls");
+		delete MQChatWnd;
+		MQChatWnd = nullptr;
+		return;
+	}
 
 	LoadChatFromINI(MQChatWnd);
 	SaveChatToINI(MQChatWnd); // this creates the file if its not there
@@ -358,9 +374,10 @@ void Style(SPAWNINFO* pChar, char* szLine)
 {
 	if (!szLine || !szLine[0])
 	{
-		char out[256] = { 0 };
-		sprintf_s(out, "Style 0x%X", MQChatWnd->GetWindowStyle());
-		WriteChatColor(out);
+		if (MQChatWnd)
+			WriteChatf("Style 0x%X", MQChatWnd->GetWindowStyle());
+		else
+			WriteChatf("MQ2ChatWnd is not currently available");
 		return;
 	}
 
@@ -401,7 +418,10 @@ void Style(SPAWNINFO* pChar, char* szLine)
 		}
 	}
 
-	WriteChatf("Style 0x%X", MQChatWnd->GetWindowStyle());
+	if (MQChatWnd)
+		WriteChatf("Style 0x%X", MQChatWnd->GetWindowStyle());
+	else
+		WriteChatf("Style change queued until MQ2ChatWnd is available");
 }
 
 void MQChatFont(SPAWNINFO* pChar, char* Line)
@@ -574,8 +594,12 @@ void DoMQ2ChatBind(const char* Name, bool Down)
 
 PLUGIN_API void OnReloadUI()
 {
-	// redraw window when you load/reload UI
-	DebugTry(CreateChatWindow());
+	const int gameState = GetGameState();
+	if (gameState == GAMESTATE_INGAME
+		|| (gameState == GAMESTATE_CHARSELECT && !bNoCharSelect))
+	{
+		DebugTry(CreateChatWindow());
+	}
 }
 
 PLUGIN_API void OnCleanUI()
@@ -670,7 +694,7 @@ PLUGIN_API DWORD OnWriteChatColor(char* Line, DWORD Color, DWORD Filter)
 	Color = pChatManager->GetRGBAFromIndex(Color);
 	char* szProcessed = new char[MAX_STRING];
 
-	int pos = MQToSTML(Line, szProcessed, MAX_STRING - 4, Color);
+	MQToSTML(Line, szProcessed, MAX_STRING - 4, Color);
 
 	CXStr text = szProcessed;
 	text.append("<br>");

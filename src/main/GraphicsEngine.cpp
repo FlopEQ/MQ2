@@ -425,6 +425,9 @@ void MQGraphicsEngine::Initialize()
 
 void MQGraphicsEngine::Shutdown()
 {
+	if (m_deviceAcquired)
+		InvalidateDeviceObjects();
+
 	ShutdownOverlay_Internal();
 
 	ImGuiManager_DestroyContext();

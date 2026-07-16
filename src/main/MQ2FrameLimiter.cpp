@@ -1290,8 +1290,42 @@ void FrameLimiterCommand(SPAWNINFO* pChar, char* szLine)
 
 #pragma region module
 
+static bool s_frameLimiterInitialized = false;
+static bool s_graphicsHooksInstalled = false;
+
+void FrameLimiter_RestoreGraphicsHooks()
+{
+	if (!s_frameLimiterInitialized || s_graphicsHooksInstalled || EQGraphicsBaseAddress == 0)
+		return;
+
+	EzDetour(CRender__RenderScene, &CRenderHook::RenderScene_Detour, &CRenderHook::RenderScene_Trampoline);
+	EzDetour(CRender__RenderBlind, &CRenderHook::RenderBlind_Detour, &CRenderHook::RenderBlind_Trampoline);
+	EzDetour(CParticleSystem__CreateSpellEmitter, &CParticleSystemHook::CreateSpellEmitter_Detour, &CParticleSystemHook::CreateSpellEmitter_Trampoline);
+	EzDetour(CRender__UpdateDisplay, &CRenderHook::UpdateDisplay_Detour, &CRenderHook::UpdateDisplay_Trampoline);
+
+	s_graphicsHooksInstalled = true;
+}
+
+void FrameLimiter_ReleaseGraphicsHooks()
+{
+	if (!s_graphicsHooksInstalled)
+		return;
+
+	RemoveDetour(CRender__RenderScene);
+	RemoveDetour(CRender__RenderBlind);
+	RemoveDetour(CParticleSystem__CreateSpellEmitter);
+	RemoveDetour(CRender__UpdateDisplay);
+
+	s_graphicsHooksInstalled = false;
+}
+
 static void InitializeFrameLimiter()
 {
+	if (s_frameLimiterInitialized)
+		return;
+
+	s_frameLimiterInitialized = true;
+
 	AddSettingsPanel("Frame Limiter", FrameLimiterSettings);
 
 	bmRenderScene = AddMQ2Benchmark("Render_Scene");
@@ -1301,13 +1335,8 @@ static void InitializeFrameLimiter()
 	// Hook UI render function
 	EzDetour(CXWndManager__DrawWindows, &CXWndManagerHook::DrawWindows_Detour, &CXWndManagerHook::DrawWindows_Trampoline);
 
-	// Hook main render function
-	EzDetour(CRender__RenderScene, &CRenderHook::RenderScene_Detour, &CRenderHook::RenderScene_Trampoline);
-	EzDetour(CRender__RenderBlind, &CRenderHook::RenderBlind_Detour, &CRenderHook::RenderBlind_Trampoline);
-	EzDetour(CParticleSystem__CreateSpellEmitter, &CParticleSystemHook::CreateSpellEmitter_Detour, &CParticleSystemHook::CreateSpellEmitter_Trampoline);
-
-	// Hook update function (will begin scene if render isn't called)
-	EzDetour(CRender__UpdateDisplay, &CRenderHook::UpdateDisplay_Detour, &CRenderHook::UpdateDisplay_Trampoline);
+	// Hook functions exported by EQGraphics.
+	FrameLimiter_RestoreGraphicsHooks();
 
 	// Hook the main loop throttle function
 #if defined(_M_AMD64)
@@ -1327,15 +1356,17 @@ static void InitializeFrameLimiter()
 
 static void ShutdownFrameLimiter()
 {
+	if (!s_frameLimiterInitialized)
+		return;
+
+	s_frameLimiterInitialized = false;
+
 	RemoveCommand("/framelimiter");
 
 	RemoveSettingsPanel("Frame Limiter");
 
 	RemoveDetour(CXWndManager__DrawWindows);
-	RemoveDetour(CRender__RenderScene);
-	RemoveDetour(CRender__RenderBlind);
-	RemoveDetour(CParticleSystem__CreateSpellEmitter);
-	RemoveDetour(CRender__UpdateDisplay);
+	FrameLimiter_ReleaseGraphicsHooks();
 	RemoveDetour(CDisplay__RealRender_World);
 	RemoveDetour(__ThrottleFrameRate);
 

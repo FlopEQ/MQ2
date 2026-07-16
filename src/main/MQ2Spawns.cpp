@@ -1035,7 +1035,7 @@ static void Spawns_Shutdown()
 	RemoveDetour(PlayerClient__SetNameSpriteTint);
 	RemoveDetour(EQGroundItemListManager__Clear);
 	RemoveDetour(EQGroundItemListManager__Add);
-	RemoveDetour(EQGroundItemListManager__Instance);
+	RemoveDetour(EQGroundItemListManager__Delete);
 
 	ProcessPending = false;
 

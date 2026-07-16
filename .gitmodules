@@ -1,14 +1,14 @@
 [submodule "src/eqlib"]
 	path = src/eqlib
-	url = https://github.com/redguides/eqlib.git
+	url = https://github.com/FlopEQ/eqlib.git
 [submodule "contrib/vcpkg"]
 	path = contrib/vcpkg
-	url = https://github.com/microsoft/vcpkg.git
+	url = https://github.com/FlopEQ/vcpkg.git
 	branch = master
 [submodule "data/lua/IntegrationTests"]
 	path = src/plugins/lua/lua/IntegrationTests
-	url = https://github.com/macroquest/integration-tests.git
+	url = https://github.com/FlopEQ/integration-tests.git
 [submodule "contrib/luarocks"]
 	path = contrib/luarocks
-	url = https://github.com/macroquest/luarocks.git
+	url = https://github.com/FlopEQ/luarocks.git
 	shallow = true

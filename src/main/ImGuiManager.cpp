@@ -21,6 +21,8 @@
 #include "MQPluginHandler.h"
 #include "imgui/ImGuiUtils.h"
 
+#include "eqlib/Events.h"
+
 #include "mq/base/WString.h"
 #include "mq/imgui/Widgets.h"
 #include "mq/utils/Benchmarks.h"
@@ -345,6 +347,13 @@ namespace ImGui
 
 namespace mq {
 
+void FrameLimiter_ReleaseGraphicsHooks();
+void FrameLimiter_RestoreGraphicsHooks();
+void GraphicsResources_ReleaseForGraphicsShutdown();
+void GraphicsResources_RestoreAfterGraphicsStartup();
+void RenderDoc_GraphicsPreRelease();
+void RenderDoc_GraphicsRestored();
+
 // Benchmarks for ImGui updates
 uint32_t bmUpdateImGui = 0;
 uint32_t bmPluginsUpdateImGui = 0;
@@ -394,6 +403,9 @@ static char ImGuiDefaultLogFile[MAX_PATH] = {};
 
 static bool s_deferredClearSettings = false;
 static bool s_needReloadForChangedSettings = false;
+static bool s_overlayComponentsStarted = false;
+static bool s_waitingForGraphicsRestore = false;
+static bool s_restoreOverlayAfterGraphicsRelease = false;
 extern bool gbToggleConsoleRequested;
 extern bool gbAutoDockspaceViewport;
 extern bool gbAutoDockspacePreserveRatio;
@@ -414,18 +426,58 @@ bool IsOverlayEnabled()
 
 static void StartupOverlayComponents()
 {
+	if (s_overlayComponentsStarted || EQGraphicsBaseAddress == 0)
+		return;
+
 	engine::Initialize();
 	InitializeImGuiConsole();
 
 	AddSettingsPanel("Overlay", ImGuiManager_OverlaySettings);
+	s_overlayComponentsStarted = true;
 }
 
 static void ShutdownOverlayComponents()
 {
+	if (!s_overlayComponentsStarted)
+		return;
+
 	RemoveSettingsPanel("Overlay");
 
 	ShutdownImGuiConsole();
 	engine::Shutdown();
+	s_overlayComponentsStarted = false;
+}
+
+static void OnEQGraphicsPreRelease()
+{
+	if (s_waitingForGraphicsRestore)
+		return;
+
+	s_waitingForGraphicsRestore = true;
+	s_restoreOverlayAfterGraphicsRelease = s_overlayComponentsStarted;
+
+	FrameLimiter_ReleaseGraphicsHooks();
+	RenderDoc_GraphicsPreRelease();
+	ShutdownOverlayComponents();
+	GraphicsResources_ReleaseForGraphicsShutdown();
+}
+
+static void RestoreGraphicsComponents()
+{
+	if (!s_waitingForGraphicsRestore || !pGraphicsEngine || EQGraphicsBaseAddress == 0)
+		return;
+
+	if (!eqlib::EnsureEQGraphicsPreReleaseHook())
+		return;
+
+	GraphicsResources_RestoreAfterGraphicsStartup();
+	if (s_restoreOverlayAfterGraphicsRelease)
+		StartupOverlayComponents();
+	FrameLimiter_RestoreGraphicsHooks();
+	RenderDoc_GraphicsRestored();
+
+	s_waitingForGraphicsRestore = false;
+	s_restoreOverlayAfterGraphicsRelease = false;
 }
 
 void DoImGuiUpdateInternal()
@@ -1849,11 +1901,19 @@ void ImGuiManager_Initialize()
 
 	AddCommand("/mqoverlay", MQOverlayCommand);
 
+	eqlib::SetEQGraphicsPreReleaseHandler(OnEQGraphicsPreRelease);
+	if (!eqlib::EnsureEQGraphicsPreReleaseHook())
+		LOG_ERROR("Could not install EQGraphics pre-release hook; overlay teardown protection is unavailable");
+
 	StartupOverlayComponents();
 }
 
 void ImGuiManager_Shutdown()
 {
+	eqlib::SetEQGraphicsPreReleaseHandler(nullptr);
+	s_waitingForGraphicsRestore = false;
+	s_restoreOverlayAfterGraphicsRelease = false;
+
 	RemoveCommand("/mqoverlay");
 
 	RemoveMQ2Benchmark(bmUpdateImGui);
@@ -1864,6 +1924,11 @@ void ImGuiManager_Shutdown()
 
 void ImGuiManager_Pulse()
 {
+	if (s_waitingForGraphicsRestore)
+		RestoreGraphicsComponents();
+	else
+		eqlib::EnsureEQGraphicsPreReleaseHook();
+
 	engine::OnUpdateFrame();
 	PulseFonts();
 }

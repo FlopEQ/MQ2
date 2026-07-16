@@ -3229,9 +3229,11 @@ bool SpawnMatchesSearch(MQSpawnSearch* pSearchSpawn, SPAWNINFO* pChar, SPAWNINFO
 		}
 	}
 
-	if (pSearchSpawn->MinLevel && pSpawn->Level < pSearchSpawn->MinLevel)
+	const uint8_t spawnLevel = pSpawn->GetLevel();
+
+	if (pSearchSpawn->MinLevel && spawnLevel < pSearchSpawn->MinLevel)
 		return false;
-	if (pSearchSpawn->MaxLevel && pSpawn->Level > pSearchSpawn->MaxLevel)
+	if (pSearchSpawn->MaxLevel && spawnLevel > pSearchSpawn->MaxLevel)
 		return false;
 	if (pSearchSpawn->NotID == pSpawn->SpawnID)
 		return false;
@@ -4081,6 +4083,9 @@ void SuperWhoDisplay(SPAWNINFO* pSpawn, DWORD Color)
 	if (pSpawn == nullptr)
 		return;
 
+	const uint8_t spawnLevel = pSpawn->GetLevel();
+	const int spawnClass = pSpawn->GetClass();
+
 	char szName[MAX_STRING] = { 0 };
 	char szMsg[MAX_STRING] = { 0 };
 	char szMsgL[MAX_STRING] = { 0 };
@@ -4098,10 +4103,13 @@ void SuperWhoDisplay(SPAWNINFO* pSpawn, DWORD Color)
 
 		if (gFilterSWho.Guild && pSpawn->GuildID != -1 && pSpawn->GuildID != 0)
 		{
-			strcat_s(szName, " <");
 			const char* szGuild = GetGuildByID(pSpawn->GuildID);
-			strcat_s(szName, szGuild ? szGuild : "Unknown Guild");
-			strcat_s(szName, ">");
+			if (szGuild)
+			{
+				strcat_s(szName, " <");
+				strcat_s(szName, szGuild);
+				strcat_s(szName, ">");
+			}
 		}
 	}
 	else
@@ -4118,11 +4126,11 @@ void SuperWhoDisplay(SPAWNINFO* pSpawn, DWORD Color)
 
 	if (gFilterSWho.GM && pSpawn->GM)
 	{
-		if (pSpawn->Level >= 50)
+		if (spawnLevel >= 50)
 		{
 			strcpy_s(GM, "\ay*GM*\ax");
 		}
-		else if (pSpawn->Level == 20)
+		else if (spawnLevel == 20)
 		{
 			strcpy_s(GM, "\a-y*Guide Applicant*\ax");
 		}
@@ -4180,7 +4188,7 @@ void SuperWhoDisplay(SPAWNINFO* pSpawn, DWORD Color)
 
 		if (gFilterSWho.Level)
 		{
-			_itoa_s(pSpawn->Level, szTemp, 10);
+			_itoa_s(spawnLevel, szTemp, 10);
 			strcat_s(szMsg, szTemp);
 			strcat_s(szMsg, " ");
 		}
@@ -4199,7 +4207,7 @@ void SuperWhoDisplay(SPAWNINFO* pSpawn, DWORD Color)
 
 		if (gFilterSWho.Class)
 		{
-			strcat_s(szMsg, GetClassDesc(pSpawn->GetClass()));
+			strcat_s(szMsg, GetClassDesc(spawnClass));
 			strcat_s(szMsg, " ");
 		}
 
